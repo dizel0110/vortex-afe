@@ -1,0 +1,13 @@
+date: "YYYY-MM-DD"
+spot: ""
+wind_conditions:
+  true_wind_knots: 0
+  direction: ""
+  water_state: "" # flat, chop, wave
+equipment:
+  kite_size_m: 0
+  board_size_cm: 0
+session_goals: []
+successes: []
+errors_and_analysis: []
+new_insights: []

@@ -1,0 +1,88 @@
+name: V-AFE Deploy
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'data/**'
+      - 'scripts/**'
+      - 'web/**'
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Test RAG Index Build
+      run: |
+        python -c "
+        from scripts.raptor_rag import RaptorIndex
+        import json
+        
+        with open('data/v-afe_core.json', 'r', encoding='utf-8') as f:
+            core_data = json.load(f)
+        
+        index = RaptorIndex()
+        index.build_from_core(core_data)
+        
+        print(f'✓ Index built: {len(index.nodes)} nodes')
+        print(f'✓ L1 concepts: {len(index.tree_levels[1])}')
+        print(f'✓ L2 categories: {len(index.tree_levels[2])}')
+        print(f'✓ L3 domains: {len(index.tree_levels[3])}')
+        
+        # Test retrieval
+        results = index.retrieve('Как правильно стартовать?', top_k=2)
+        print(f'✓ Retrieval test: {len(results)} results')
+        "
+    
+    - name: Validate JSON
+      run: |
+        python -c "import json; json.load(open('data/v-afe_core.json'))"
+        echo "✓ v-afe_core.json is valid"
+  
+  deploy-pages:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./
+        keep_files: true
+    
+    - name: Output deployment URL
+      run: |
+        echo "✓ Deployed to https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+
+  notify:
+    needs: [test, deploy-pages]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Notify status
+      run: |
+        if [ "${{ needs.test.result }}" == "success" ] && [ "${{ needs.deploy-pages.result }}" == "success" ]; then
+          echo "✓ Deployment successful!"
+        else
+          echo "⚠️ Deployment completed with issues"
+        fi
